@@ -328,8 +328,16 @@ use just +1; # a JustLib application
 use strict;
 use integer;
 use Htex::papers;
-BEGIN { $Htex::a2ping::VERSION="2.76p" }
+BEGIN { $Htex::a2ping::VERSION="2.80p" }
 
+# Imp: option to ignore `%%Orientation: Portrait', which gs respects and rotates by 90 degrees if necessary
+# Imp: gs(704?!) sometimes finds too small bbox, see Univers.eps
+# Imp: respect bbox in METAPOST %! (not EPS), don't use Compute-GS T-
+# Imp: -sPDFPassword=...
+# Imp: `a2ping.pl -v jf.eps pdf1: t.pdf' PDF1: must be forced to have --below
+# Imp: option to `clip' an EPS to the specified bbox -- does file size decrease?
+# Imp: fix bug a2ping -v ~/a2ping_bug.ps a2ping_bug.pdf; running type1fix on
+#      all fonts with dff.pl has fixed the problem
 # Imp: post-process PNG etc. written by sam2p
 # Imp: better help and docs
 # Imp: respect full /MediaBox for a PDF -> EPS|PDF1 conversion
@@ -353,7 +361,9 @@ BEGIN { $Htex::a2ping::VERSION="2.76p" }
 # Imp: detect error messages from GS, abort...
 # Imp: use all pdftops + gs + acroread
 # Imp: possibly accept /PageSize from %%DocumentMedia
+# Imp: /DocumentMedia seems to screw up sub-pt placement in gv(1)
 #
+# Dat: example: a2ping.pl --extra=-c:ijg:50 -r86 nn1.eps nn1.jpg
 # Dat: calling ``showpage'' is not required for -sDEVICE=pdfwrite with gs 6.50,
 #      but -sDEVICE=pgmraw depends on it
 # Dat: the functionality of pdfboxes.pl cannot be provided here with a shorter
@@ -367,15 +377,16 @@ BEGIN { $Htex::a2ping::VERSION="2.76p" }
 
 ### program identification
 my $program = "a2ping.pl";
-my $filedate="2004-02-10";  # See also $Htex::a2ping::VERSION.
-my $copyright = "by pts\@fazekas.hu\n(epstopdf 2.7 Copyright 1998-2001 by Sebastian Rahtz et al.)";
+my $filedate="2004-04-28";  # See also $Htex::a2ping::VERSION.
+my $copyright = "Written by <pts\@fazekas.hu> from April 2003.
+This is free software, GNU GPL >=2.0. There is NO WARRANTY.
+(epstopdf 2.7 Copyright 1998-2001 by Sebastian Rahtz et al.)\n";
 # "Contains modifications by pts\@fazekas.hu";
 my $title = "$program $Htex::a2ping::VERSION, $filedate -- $copyright\n";
 
 ### ghostscript command name
 my($quote,$GS)=("'","gs");
 ($quote,$GS) = ("\"","gswin32c") if $^O eq 'MSWin32' or $^O =~ /cygwin/i;
-$GS.=" -dSAFER"; # -dWRITESYSTEMDICT
 
 # --- help functions
 
@@ -479,7 +490,7 @@ my %fmt_aliases=qw(MARKEDPS markedPS  MARKEDEPS markedEPS  PCL PCL5
 # Dat: .ps will be unmarked PS
 # Imp: sometimes markedEPS for .eps?
 my %fmt_exts=qw(eps EPS  epsi EPS  epsf EPS  eps2 EPS  ps PS  ps2  PS
-  pcl PCL  pcl5 PCL  pbm PBM  pgm PGM  pnm PPM  ppm PPM  pdf PDF  png PNG
+  pcl PCL5  pcl5 PCL5  pbm PBM  pgm PGM  pnm PPM  ppm PPM  pdf PDF  png PNG
   xwd XWD  bmp  BMP  rle BMP  tif TIFF  tiff TIFF  jpg JPEG  jpe JPEG
   jpg JPEG  gif GIF  xpm XPM);
 
@@ -497,9 +508,11 @@ Options: --help print this help message
 --(no)hires     scan HiResBoundingBox             (def: yes)
 --(no)exact     scan ExactBoundingBox             (def: no)
 --(no)verbose   verbose debug informations        (def: no)
---(no)below     allow below baseline              (def: no)
+--(no)below     allow below+left_from baseline    (def: no)
 --(no)tmpunlink unlink temporary files            (def: yes)
 --(no)antialias render shades at outlines (def: scale3no) (=scale3yes =no =yes)
+--gs-cmd=       path to Ghostscript               (def: gs or gswin32c)
+--gs-ccmd=      path to Ghostscript, 4 bbox calc  (def: gs or gswin32c)
 --gsextra=      extra arg to gs
 --extra=        extra arg to external prg (i.e pdftops)
 --bboxfrom=     adsc|compute-gs|pagesize          (def: guess)
@@ -535,6 +548,7 @@ $::opt_exact=0;
 # $::opt_outputfile=undef; # deprecated
 $::opt_below=undef;
 $::opt_antialias=undef; # render shades at path outlines for better readability
+$::opt_gs_cmd=undef;
 $::opt_extra="";
 $::opt_duplex="default";
 $::opt_threshold=128;
@@ -584,7 +598,7 @@ sub show_doc() {
   my $man='';
   if (substr($pod2man_,0,5)ne 'perl ') {
     $man=' | man -l -'; # calls $PAGER
-    if (!grep { -x "$_/man" } @path) {
+    if ((!grep { -x "$_/man" } @path) or qx(man -l 2>&1)=~/\binvalid option\b/) {
       $man=' | nroff -Tlatin1 -mandoc'; # Linux, no need for eqn(1), tbl(1) etc.
       if (!grep { -x "$_/nroff" } @path) { $man='' } # just write it
     }
@@ -600,6 +614,8 @@ sub show_doc() {
     $cmd.=' | $PAGER';
   }
   ##die $cmd;
+  $ENV{LESS}="" if !defined $ENV{LESS};
+  $ENV{LESS}="$ENV{LESS}R"; # show ANSI escapes
   die "$0: exec ($cmd) failed: $!\n" if !exec $cmd;
 }
 
@@ -612,7 +628,8 @@ show_doc() if 1==@ARGV and $ARGV[0] eq '--doc' or $ARGV[0] eq 'doc';
     f filter  d verbose  v verbose  debug verbose  p papersize
     c compression  compress compression  h hires  b below  e exact  x extra);
   #** Options that have a mandatory argument
-  my %argopt1=qw(outputfile 1 duplex 1 resolution 1 extra 1 compression 1
+  my %argopt1=qw(outputfile 1 duplex 1 resolution 1 extra 1 compression 1 gs-cmd 1
+    gs-ccmd 1
     papersize 1 paper 1 bboxfrom 1 antialias 1 gsextra 1 threshold 1); # 1 arg
   my %argnone=qw(help 1 verbose 1 noverbose 1 nocompress 1 noantialias 1); # 0 arg
   my %argmaybe=qw();  # 0 or 1 arg
@@ -689,10 +706,15 @@ show_doc() if 1==@ARGV and $ARGV[0] eq '--doc' or $ARGV[0] eq 'doc';
       errorUsage "--$optname expects one of: @{[keys%vals_compression]}" if !exists $vals_compression{$optval};
       $::opt_compression=$optval;
       $::opt_compression='zip' if $::opt_compression eq 'flate';
-    }
-    elsif ($optname eq "outputfile") {
+    } elsif ($optname eq "outputfile") {
       errorUsage "Multiple output filenames" if defined $OutputFilename;
       $OutputFilename=$optval;
+    } elsif ($optname eq "gs-cmd") {
+      errorUsage "Multiple --gs-cmd" if defined $::opt_gs_cmd;
+      $::opt_gs_cmd=$optval;
+    } elsif ($optname eq "gs-ccmd") {
+      errorUsage "Multiple --gs-ccmd" if defined $::opt_gs_ccmd;
+      $::opt_gs_ccmd=$optval;
     } elsif ($optname eq "extra") { push @extra, $optval }
     elsif ($optname eq "gsextra") { push @gsextra, $optval }
     elsif ($optname eq "duplex") {
@@ -724,6 +746,12 @@ show_doc() if 1==@ARGV and $ARGV[0] eq '--doc' or $ARGV[0] eq 'doc';
   errorUsage "Too many arguments (multiple input/output files?)" if $I!=@ARGV;
   # splice @ARGV, 0, $I;
 }
+
+$GS=$::opt_gs_cmd if defined $::opt_gs_cmd;
+my $CGS=$GS;
+$CGS=$::opt_gs_ccmd if defined $::opt_gs_ccmd;
+$GS.= " -dSAFER"; # -dWRITESYSTEMDICT
+$CGS.=" -dSAFER"; # -dWRITESYSTEMDICT
 
 ### get input and output filename
 if (!defined $InputFilename and defined $OutputFilename) { # --filter
@@ -889,6 +917,8 @@ sub fix_pipe_in($$$) {
     $bytes_left=-1; # unlimited, since readIN() has copied only part
     # $bytes_left++ if $bytes_left>=0; # ungetc($c)
     # temp_unlink $tifn; # do it later (at END{})
+  } else {
+    $already_read--; $bytes_left++ if $bytes_left>=0; # BUGFIX at Fri May 14 00:21:18 CEST 2004
   }
 }
 
@@ -983,6 +1013,7 @@ my $header;
   read_error if 0>read IN, $S, 4;
   error "$InputFilename: empty file" if 0==length($S);
   $already_read+=length($S);
+  ##print tell(IN)." bar=$already_read\n";
   my $iff="?"; # Input File Format
   # vvv be permissive, since we have only 4 chars
   if ($S eq "\211PNG") { $iff="PNG" }
@@ -1004,6 +1035,7 @@ my $header;
     read_error if 30-4>read IN, $S, 30-4, 4;
     my ($eheader,$ps_ofs,$ps_len,$wmf_ofs,$wmf_len,$tif_ofs,$tif_len,$checksum)=
       unpack"A4VVVVVVv", $S;
+    $already_read+=30-4;
     error "$InputFilename: bad DOS EPS" if $eheader ne "\305\320\323\306" or $ps_ofs<30;
     my($ps_end, $wmf_end, $tif_end)=($ps_ofs+$ps_len, $wmf_ofs+$wmf_len, $tif_ofs+$tif_len);
     $ps_ofs-=30;
@@ -1046,6 +1078,7 @@ my $header;
       die unless close TP;
       do_system('sam2p', ("$sfmt:", '--', $InputFilename, $tpfn));
       error "Cannot open temp pipe src: $tpfn" unless open IN, "< $tpfn";
+      $already_read=0; $bytes_left=-1;
       $InputFilename=$tpfn; # '-'
       goto SCAN_AGAIN
     }
@@ -1073,7 +1106,7 @@ my $header;
         fix_pipe_in ".pdf", $S, 0; # in case of stdin
         # Imp: option to open pdftops pipe instead of temp file
         # Dat: we rather use a temp file here for safety and early error detection
-       do_input_pdftops:
+       do_input_pdftops: # come from EPS: and markedEPS:
         close IN; # after fix_pipe_in()
 	my $tpfn=temp_prefix()."Peps";
         error "Cannot open temp pipe dest: $tpfn" unless open TP, "> $tpfn";
@@ -1081,6 +1114,7 @@ my $header;
         die unless close TP;
         do_system qw(pdftops -f 1 -l 1 -eps -- ), $InputFilename, $tpfn;
         error "Cannot open temp pipe src: $tpfn" unless open IN, "< $tpfn";
+	$already_read=0; $bytes_left=-1;
         $InputFilename=$tpfn; # '-'
         goto SCAN_AGAIN
       } elsif ($FileFormat eq 'EPS' or $FileFormat eq 'markedEPS') { # convert PDF to EPS
@@ -1123,6 +1157,7 @@ my $header;
 	  die unless close TP;
           do_system 'pdftops', '-paperw', $L[0], '-paperh', $L[1], $InputFilename, $tpfn;
 	  error "Cannot open temp pipe src: $tpfn" unless open IN, "< $tpfn";
+	  $already_read=0; $bytes_left=-1;
 	  $InputFilename=$tpfn; # '-'
 	  goto SCAN_AGAIN
 	}
@@ -1262,7 +1297,8 @@ sub CorrectBoundingBox($$$$$$$) {
   and $after_correct!~m@/PageSize\s*\[@) { # Imp: m@/Pagesize ugly
     # Dat: true for FileFormat PGM
     # Dat: emit /PageSize even for PDF1
-    $setpagesize="2 dict dup /PageSize [$urx $ury] put setpagedevice\n";
+    # Dat: Ghostscript 6.70 rounds /PageSize down, but we need up when creating /MediaBox for PDF
+    $setpagesize="2 dict dup /PageSize [".ceil($urx)." ".ceil($ury)."] put setpagedevice\n";
     # ^^^ Dat: PLRM.pdf doesn't forbid a non-integer /PageSize
   }
   my $bsetup=is_page1_stop()?"":"%%BeginSetup\n%%EndSetup\n";
@@ -1350,7 +1386,8 @@ if (1<length($header)) {
       my $tfn=temp_prefix()."c.tgs";
       error "temp open $tfn: $!" unless open F, "> $tfn";
       $tmpfiles{$tfn}=1;
-      die unless print F "% this is temporary gs command file created by $program".'
+      ##print tell(IN)." car=$already_read\n";
+      die "$0: $!\n" unless print F "% this is temporary gs command file created by $program".'
 /DOCUT true def
 /MAINFILE FN (r) file def
 /DICTCOUNT countdictstack def
@@ -1488,15 +1525,16 @@ showpage quit
 ';
       die unless close F;
       # vvv Imp: make it work on Win32 (no >&1 redirection)
-      my $gs3=$GS. # "-dPAGE1QUIT=".($FileFormat eq 'EPS' or $FileFormat eq 'markedEPS' ? 'quit' : '{}').
+      my $gs3=$CGS. # "-dPAGE1QUIT=".($FileFormat eq 'EPS' or $FileFormat eq 'markedEPS' ? 'quit' : '{}').
         " -dWRITESYSTEMDICT -dNOPAUSE -sDEVICE=bbox -sFN=".fnq($InputFilename)." ".fnq($tfn)." 2>&1";
       debug "Ghostscript compute pipe: $gs3";
       my $res=`$gs3`;
       ## die $res;
       temp_unlink $tfn;
       ## print STDERR $res;
-      error "not a GS output"
-        if $res!~s/\A\w+ Ghostscript \d.*\n// # AFPL Ghostscript 6.50 (2000-12-02)
+      error $?==11 ? "segmentation fault in $GS" : "not a GS output from $GS ($?)"
+        if !defined $res # BUGFIX at Sun Mar  7 18:51:34 CET 2004
+        or $res!~s/\A\w+ Ghostscript \d.*\n// # AFPL Ghostscript 6.50 (2000-12-02)
         or $res!~s/.*?^bbox-begin\n//m;
       if ($res!~s/\nbbox-success\n\Z(?!\n)/\n/) {
         warning # not `error', mpost(1) `prologues:=0; ... btex fonts' output won't compile
@@ -1581,7 +1619,7 @@ showpage quit
         die if is_page1_stop();
         # vvv ($llx,$lly,$urx,$ury)=(0,0,$papersize_x,$papersize_y);
         # $do_bb_line->("set 0 0 $papersize_x $papersize_y"," from /PageSize");
-        $after_correct.="1 dict dup /PageSize [$papersize_x $papersize_y] put setpagedevice\n";
+        $after_correct.="1 dict dup /PageSize [".ceil($papersize_x)." ".ceil($papersize_y)."] put setpagedevice\n";
         # ^^^ Dat: both PS and markedPS would benefit from /PaperSize
         # ^^^ Dat: will be put after CorrectBoundingBox
         # Dat: unneeded: $allow_adsc_bb=0 if $FileFormat eq 'PDF'; # force this into /CropBox (otherwise only /MediaBox)
@@ -1626,7 +1664,7 @@ showpage quit
       $after_code.=("pop\n"x$pop_count).("end\n"x$end_count);
       if ($cut_offset>=0 and ($bytes_left==-1 or $cut_offset<$bytes_left)) {
         $bytes_left=$cut_offset-$already_read;
-        # print tell(IN)." ar=$already_read\n";
+        ##print tell(IN)." ar=$already_read\n";
         debug "Cutting after showpage at $cut_offset -> $bytes_left";
         # ^^^ Dat: cutting after `showpage' makes PS -> EPS conversion easy
         # sleep 1000;
@@ -1658,7 +1696,7 @@ showpage quit
   my %fontsnames;
   my @creator;
   read_again: while (length($_=readIN)) {
-    # print STDERR "(($_))\n";
+    ##print STDERR "(($_))\n";
     ### end of header
     next unless /\S/;
     y@\r@@d; chomp;
@@ -1678,6 +1716,7 @@ showpage quit
       } elsif (/^%%Creator:\s*MetaPost\b/i) {
         $creator_metapost_p=1;
       } elsif ((substr($_,0,2)ne'%%' and substr($_,0,7)ne'%*Font:')
+       and substr($_,0,5)ne'%EPS ' # epsincl.mp
        or !$creator_metapost_p and substr($_,0,5)eq'%%End'
        or /^%%Begin(?:Prolog|Setup)\b/i
          ) { $after_comments.="$_\n"; last }
@@ -1709,12 +1748,14 @@ showpage quit
       # warning "Cannot look for BoundingBox in the trailer with option --filter" if $::opt_filter;
       # ^^^ Dat: may be seekable anyway, omit warning
       $do_atend=1
-    } elsif (/^%%Page:/i) { # at Thu Sep 25 15:59:52 CEST 2003
+    } elsif (/^%%Page:/i and !$creator_metapost_p) { # at Thu Sep 25 15:59:52 CEST 2003
       $after_comments.="$_\n"; last
     } elsif (/^%\*Font:\s+(\S+)\s+/) { # mpost(1) output
       ## debug $_;
       $fontsdefs.="$_\n"; # put in front (before `gsave ... translate')
       $fontsnames{$1}=1;
+    } elsif (substr($_,0,5) eq '%EPS ') { # epsincl.mp
+      $after_correct.="$_\n" if !$doing_atend; # before `gsave'
     } elsif ($doing_atend or /^%%End/) {
       # we might be in mid-line
     } else {
@@ -2053,7 +2094,9 @@ if (@pnm2sampled_cmd) { # $scale3_pnm_fn -> $OutputFilename
 }
 fix_close_out();
 undef $unlink_OutputFilename;
-if (-f $OutputFilename) {
+if ($OutputFilename eq '-') {
+  debug "Done OK, stdout is $FileFormat"
+} elsif (-f $OutputFilename) {
   debug "Done OK, created $FileFormat file $OutputFilename (".(-s _)." bytes)";
 } else {
   error "missing $OutputFilename"
@@ -2094,14 +2137,13 @@ Z<> B<a2ping.pl> [B<-->]B<help>
 =head1 DESCRIPTION
 
 B<a2ping> is a UNIX command line utility written in Perl that
-converts many raster image and vector graphics formats to EPS or PDF snf
+converts many raster image and vector graphics formats to EPS or PDF and
 other page description formats. Accepted input file formats are: PS
 (PostScript), EPS, PDF, PNG, JPEG, TIFF, PNM, BMP, GIF, LBM, XPM, PCX,
 TGA. Accepted output formats are: EPS, PCL5, PDF, PDF1, PBM, PGM, PPM,
 PS, markedEPS, markedPS, PNG, XWD, BMP, TIFF, JPEG, GIF, XPM.
 B<a2ping> delegates the low-level work to
-Ghostscript (GS), B<pdftops> and B<sam2p>. Only the first page of PDF and PS
-files are converted. B<a2ping> fixes many glitches during, especially
+Ghostscript (GS), B<pdftops> and B<sam2p>. B<a2ping> fixes many glitches
 during the EPS to EPS conversion, so its output is often more compatible
 and better embeddable than its input.
 
