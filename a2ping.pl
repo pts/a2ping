@@ -9,6 +9,28 @@ package Htex::a2ping;  $0=~/(.*)/s;unshift@INC,'.';do($1);die$@if$@;__END__+if !
 # This program is free software, licensed under the GNU GPL, >=2.0.
 # This software comes with absolutely NO WARRANTY. Use at your own risk!
 #
+# !! Ghostcript compute pipe too slow
+#      $ a2ping.pl -v debrecen-hyph.ps debrecen-hyph.pdf
+#      a2ping.pl ... -- Written by <pts@fazekas.hu> from April 2003.
+#      This is free software, GNU GPL >=2.0. There is NO WARRANTY.
+#      (epstopdf 2.7 Copyright 1998-2001 by Sebastian Rahtz et al.)
+#      * Strongest BoundingBox comment: %%HiResBoundingBox:
+#      * Doing --PaperSize unchanged
+#      * Output filename: debrecen-hyph.pdf
+#      * Output FileFormat: PDF
+#      * Ghostscript ps2pdf command: gs -dSAFER
+#      * Compression: zip
+#      * Input filename: debrecen-hyph.ps
+#      * Computing BBox info from non-EPS PS file
+#      * Ghostscript compute pipe: gs -dSAFER -dWRITESYSTEMDICT -dNOPAUSE -sDEVICE=bbox -sFN=debrecen-hyph.ps /tmp/a2ping_pl-16977-298938572-c.tgs 2>&1
+#      * Applying BoundingBox from Compute-GS T-: 71 81 539 769
+#      * Applying HiResBoundingBox from Compute-GS T-H: 71.837998 81.971997 538.235984 768.113977
+#      * Scanning header for BoundingBox
+#      * Applying BoundingBox from ADSC T-: 0 0 596 842
+#      * Final BoundingBox: 0 0 596 842
+#      * Ghostscript ps2pdf pipe: gs -dSAFER -q -dBATCH -sDEVICE=pdfwrite  -sOutputFile=debrecen-hyph.pdf -
+#      * Done OK, created PDF file debrecen-hyph.pdf (338451 bytes)
+#
 package just; BEGIN{$INC{'just.pm'}='just.pm'}
 BEGIN{ $just::VERSION=2 }
 sub end(){1}
@@ -328,7 +350,7 @@ use just +1; # a JustLib application
 use strict;
 use integer;
 use Htex::papers;
-BEGIN { $Htex::a2ping::VERSION="2.80p" }
+BEGIN { $Htex::a2ping::VERSION="2.81p" }
 
 # Imp: option to ignore `%%Orientation: Portrait', which gs respects and rotates by 90 degrees if necessary
 # Imp: gs(704?!) sometimes finds too small bbox, see Univers.eps
@@ -377,7 +399,7 @@ BEGIN { $Htex::a2ping::VERSION="2.80p" }
 
 ### program identification
 my $program = "a2ping.pl";
-my $filedate="2004-04-28";  # See also $Htex::a2ping::VERSION.
+my $filedate="2006-11-15";  # See also $Htex::a2ping::VERSION.
 my $copyright = "Written by <pts\@fazekas.hu> from April 2003.
 This is free software, GNU GPL >=2.0. There is NO WARRANTY.
 (epstopdf 2.7 Copyright 1998-2001 by Sebastian Rahtz et al.)\n";
@@ -420,7 +442,7 @@ sub cleanup() {
 }
 END { unlink keys %tmpfiles; }
 sub temp_unlink($) {
-  if (exists $tmpfiles{$_[0]}) {
+  if (defined $_[0] and exists $tmpfiles{$_[0]}) {
     unlink $_[0] if $tmpunlink_p;
     delete $tmpfiles{$_[0]};
   }
@@ -436,18 +458,17 @@ sub temp_prefix() {
 }
 
 #** @return arg rounded down to int
-sub floor($) {
+sub myfloor($) {
   # Dat: Perl int() rounds towards zero
   no integer;
-  $_[0] < 0 ? -int(-$_[0]) : int($_[0])
+  $_[0]==int($_[0]) ? $_[0] : $_[0] < 0 ? -int(1-$_[0]) : int($_[0])
 }
 
 #** @return arg rounded up to int
-sub ceil($) {
-  no integer;
-  $_[0]==int($_[0]) ? $_[0] : 1+ ($_[0] < 0 ? -int(-$_[0]) : int($_[0]))
+sub myceil($) {
+  no integer; #### BUGFIX at Wed Nov 15 17:23:29 CET 2006
+  $_[0]==int($_[0]) ? $_[0] : 1+ ($_[0] < 0 ? -int(-$_[0]) : int($_[0]));
 }
-
 
 just::main;
 
@@ -460,8 +481,8 @@ sub FL_NEED_SHOWPAGE(){8} # does gs -sDEVICE=... need showpage?
 sub FL_SAMPLED(){16} # is it a sampled (raster, pixel-based)
 sub FL_ANY_ORIGIN_OK(){32} # (llx,lly) may be anything, not just (0,0)
 sub FL_HAS_ANTIALIAS(){64}
-sub FL_VIA_SAM2P(){128} # sam2p(1) can convert PNM to such a format
-sub FL_OK_SAM2P(){256}
+sub FL_VIA_SAM2P(){128} # sam2p(1) should convert PNM to such a format
+sub FL_OK_SAM2P(){256} # sam2p(1) can convert PNM to such a format
 
 my %fmts=( # Name=>[flags]
   'EPS'=>[FL_PAGE1_STOP],
@@ -511,6 +532,8 @@ Options: --help print this help message
 --(no)below     allow below+left_from baseline    (def: no)
 --(no)tmpunlink unlink temporary files            (def: yes)
 --(no)antialias render shades at outlines (def: scale3no) (=scale3yes =no =yes)
+--(no)lossy     allow lossy image filters (EPS->PDF) (def: yes)
+--(no)keepoldmediabox keep only old, [0 0]-based MediaBox in PDF (def: no)
 --gs-cmd=       path to Ghostscript               (def: gs or gswin32c)
 --gs-ccmd=      path to Ghostscript, 4 bbox calc  (def: gs or gswin32c)
 --gsextra=      extra arg to gs
@@ -547,6 +570,8 @@ $::opt_exact=0;
 # $::opt_filter=0; # deprecated
 # $::opt_outputfile=undef; # deprecated
 $::opt_below=undef;
+$::opt_keepoldmediabox=0;
+$::opt_lossy=1;
 $::opt_antialias=undef; # render shades at path outlines for better readability
 $::opt_gs_cmd=undef;
 $::opt_extra="";
@@ -634,7 +659,7 @@ show_doc() if 1==@ARGV and $ARGV[0] eq '--doc' or $ARGV[0] eq 'doc';
   my %argnone=qw(help 1 verbose 1 noverbose 1 nocompress 1 noantialias 1); # 0 arg
   my %argmaybe=qw();  # 0 or 1 arg
   my %argbool=qw(hires 1 exact 1 below 1 gs 1 filter 1 tmpunlink 1
-    approx 1); # boolean arg
+    approx 1 lossy 1 keepoldmediabox 1); # boolean arg
   # Dat: --noverbose --nocompress
   my $opts_ok=1;
   for ($I=0; $I<@ARGV; $I++) {
@@ -693,6 +718,8 @@ show_doc() if 1==@ARGV and $ARGV[0] eq '--doc' or $ARGV[0] eq 'doc';
     elsif ($optname eq "hires")  { $::opt_hires =$optval }
     elsif ($optname eq "exact")  { $::opt_exact =$optval }
     elsif ($optname eq "below")  { $::opt_below =$optval }
+    elsif ($optname eq "keepoldmediabox")  { $::opt_keepoldmediabox=$optval }
+    elsif ($optname eq "lossy")  { $::opt_lossy =$optval }
     elsif ($optname eq "approx") { $::opt_approx=$optval }
     elsif ($optname eq "threshold")  { $::opt_threshold=$optval+0 } # Imp: accept only int 0..256
     elsif ($optname eq "filter") {
@@ -750,8 +777,9 @@ show_doc() if 1==@ARGV and $ARGV[0] eq '--doc' or $ARGV[0] eq 'doc';
 $GS=$::opt_gs_cmd if defined $::opt_gs_cmd;
 my $CGS=$GS;
 $CGS=$::opt_gs_ccmd if defined $::opt_gs_ccmd;
-$GS.= " -dSAFER"; # -dWRITESYSTEMDICT
-$CGS.=" -dSAFER"; # -dWRITESYSTEMDICT
+# vvv SUXX: (r) file doesn't work with gs 8.5x -DSAFER
+#$GS.= " -dSAFER"; # -dWRITESYSTEMDICT
+#$CGS.=" -dSAFER"; # -dWRITESYSTEMDICT
 
 ### get input and output filename
 if (!defined $InputFilename and defined $OutputFilename) { # --filter
@@ -863,6 +891,7 @@ if ($FileFormat eq 'PDF' or $FileFormat eq 'PDF1') {
 
 #**** pts ****
 sub read_error() { error "read $InputFilename: $!" }
+my $in_mac_p=0; # 0: "\n" or "\r\n" is line terminator; 1: "\r" is line terminator
 my $bytes_left=-1; # -1==unlimited
 my $already_read=0;
 sub dem1($){defined$_[0]?$_[0]:-1}
@@ -875,7 +904,10 @@ sub readIN(;$) {
   if (defined $_[0]) { read_error if 0>dem1 read IN, $S, $_[0] }
   else {
     $!=0; # clean up error code
-    $S=<IN>;
+    if ($in_mac_p) {
+      local $/="\r";
+      $S=~s@\r\Z(?!\n)@\n@ if defined($S=<IN>);
+    } else { $S=<IN> }
     read_error if !defined($S) and $!;
     $S="" if !defined $S; # EOF
   }
@@ -1005,6 +1037,81 @@ if ($InputFilename eq '-') {
 }
 binmode IN;
 
+#** Dat: uses $FileFormat, $InputFileName, $OutputFileName
+#** @param $S prepend to pipe
+sub run_sam2p($$) {
+  my($approx_p,$S)=@_;
+  # Imp: why isn't sam2p(1) PNG -> PNG idempotent?
+  my $tfmt=$FileFormat eq'markedEPS' || $FileFormat eq 'EPS' ? 'EPS'
+         : $FileFormat eq'markedPS' || $FileFormat eq 'PS' ? 'PS' # Dat: emits no /PageSize
+         : $FileFormat eq'PDF1' || $FileFormat eq 'PDF' ? 'PDF'
+         : undef;
+  if (defined $tfmt) {}
+  elsif (is_via_sam2p() or is_ok_sam2p()) {$tfmt=$FileFormat; $::opt_approx=1}
+  else { error "sam2p doesn't support our FileFormat $FileFormat" }
+  fix_pipe_in ".img", $S, 0;
+  if ($approx_p) {
+    if ($tfmt eq 'GIF') {
+      # Dat: reduce palette to 8-bit if necessary
+      my @args=('sam2p',@extra,"$tfmt:",'--',$InputFilename,$OutputFilename);
+      debug "Running: @args";
+      my $cmd=join('  ',map{fnq$_}@args)." 2>&1";
+      my $res=readpipe($cmd);
+      if ($res=~/\binvalid combination, no applicable OutputRule\b/) {
+        # Dat: reduce palette to 8-bit
+        #die "NOR";
+        my $have_convert_p;
+        my $have_pnmquant_p=0;
+        for my $dir (split/:/,$ENV{PATH}) {
+          if ((-f"$dir/pnmquant")) { $have_pnmquant_p=1 }
+        }
+        if (!$have_pnmquant_p) {
+          $have_convert_p=0;
+          for my $dir (split/:/,$ENV{PATH}) {
+            if ((-f"$dir/convert")) { $have_convert_p=1 }
+          }
+        }
+        my $cmd;
+        if ($have_pnmquant_p) {
+          my @args1=('sam2p','PPM:','--',$InputFilename,'-');
+          my @args2=('sam2p',@extra,"$tfmt:",'--','-',$OutputFilename);
+          $cmd=join('  ',map{fnq$_}@args1)." | pnmquant 256 | ".
+                  join('  ',map{fnq$_}@args2);
+        } elsif ($have_convert_p) {
+          my @args1=('sam2p','PPM:','--',$InputFilename,'-');
+          my @args2=('sam2p',@extra,"$tfmt:",'--','-',$OutputFilename);
+          # vvv Dat: `convert - GIF:-' does quantize (and emits GIF)
+          $cmd=join('  ',map{fnq$_}@args1)." | convert - GIF:- | ".
+                  join('  ',map{fnq$_}@args2);
+        }
+        debug "Running pipe: $cmd";
+        exec($cmd);
+      } elsif ($? !=0) { die $res }
+      # die $cmd;
+      #debug "Running: $progname  @extra @_";
+      #error "prog $progname failed: $? $!"
+      #if 0!=system $progname, @extra, @_; # Dat: non-zero exit() or not found
+    }
+    do_exec('sam2p', ("$tfmt:", '--', $InputFilename, $OutputFilename));
+  } else {
+    warning "post-processing of sam2p PDF output increases file size" if $tfmt eq 'PDF';
+    $tfmt='EPS' if $tfmt eq 'PDF'; # Imp: PDF1<->PDF
+    close IN;
+    my $tpfn=temp_prefix()."Psimg";
+    error "Cannot open temp pipe dest: $tpfn" unless open TP, "> $tpfn";
+    $tmpfiles{$tpfn}=1;
+    die unless close TP;
+    do_system('sam2p', ("$tfmt:", '--', $InputFilename, $tpfn));
+    error "Cannot open temp pipe src: $tpfn" unless open IN, "< $tpfn";
+    $already_read=0; $bytes_left=-1;
+    $InputFilename=$tpfn; # '-'
+    goto SCAN_AGAIN
+  }
+}
+
+#** Force this value for %%HiResBoundingBox if a %BoundingBox is read
+my $force_hiresbbox_value;
+
 ### scan first line, check for DOS EPSF (and remove DOS headers)
 my $header;
 { SCAN_AGAIN:
@@ -1049,44 +1156,37 @@ my $header;
     $S.=readIN;
     $S=substr($S,1);
     error "$InputFilename: bad HP PJL UEL header: ".(~chomp($S)&&$S)
-      if $S!~/\A%-12345X\@PJL ENTER LANGUAGE\s*=\s*POSTSCRIPT\s*\r?$/i;
+      if $S!~/\A\\e?%-12345X\@PJL ENTER LANGUAGE\s*=\s*POSTSCRIPT\s*\r?$/i;
     1 while length($S=readIN())!=0 and substr($S,0,4)ne'%!PS';
     die "$InputFilename: premature HP PJL UEL header" if length($S)==0;
   } elsif ($iff eq "P") {
     # no-op yet, see later
   } elsif ($iff eq "?") {
     error "unknown input image format: $InputFilename";
-  } else { # some vector graphics format
-    # Imp: why isn't sam2p(1) PNG -> PNG idempotent?
-    my $sfmt=$FileFormat eq'markedEPS' || $FileFormat eq 'EPS' ? 'EPS'
-           : $FileFormat eq'markedPS' || $FileFormat eq 'PS' ? 'PS' # Dat: emits no /PageSize
-           : $FileFormat eq'PDF1' || $FileFormat eq 'PDF' ? 'PDF'
-           : undef;
-    if (defined $sfmt) {}
-    elsif (is_via_sam2p() or is_ok_sam2p()) {$sfmt=$FileFormat; $::opt_approx=1}
-    else { error "sam2p doesn't support our FileFormat $FileFormat" }
-    fix_pipe_in ".img", $S, 0;
-    if ($::opt_approx) {
-      do_exec('sam2p', ("$sfmt:", '--', $InputFilename, $OutputFilename));
-    } else {
-      warning "post-processing of sam2p PDF output increases file size" if $sfmt eq 'PDF';
-      $sfmt='EPS' if $sfmt eq 'PDF'; # Imp: PDF1<->PDF
-      close IN;
-      my $tpfn=temp_prefix()."Psimg";
-      error "Cannot open temp pipe dest: $tpfn" unless open TP, "> $tpfn";
-      $tmpfiles{$tpfn}=1;
-      die unless close TP;
-      do_system('sam2p', ("$sfmt:", '--', $InputFilename, $tpfn));
-      error "Cannot open temp pipe src: $tpfn" unless open IN, "< $tpfn";
-      $already_read=0; $bytes_left=-1;
-      $InputFilename=$tpfn; # '-'
-      goto SCAN_AGAIN
-    }
+  } else { # source file is in some raster graphics format
+    run_sam2p($::opt_approx,$S);
+    goto SCAN_AGAIN
   }
 
   # now deal with PS, EPS and PDF
   if (substr($S,0,1) eq '%') {
-    $S.=readIN;
+    { my $max=128;
+      my $C;
+      while (length($S)<$max and defined($C=readIN(1)) and
+       $C ne "\n" and $C ne "\r") { $S.=$C }
+      error "couldn't find end of PS/PDF header line in $max bytes\n" if
+        length($S)>=$max or !defined($C);
+      $C=($C eq "\r") ? readIN(1) : "NONE";
+      if (!defined$C or ($C ne "\n" and $C ne "NONE")) {
+        use IO::Handle; # Dat: needed for ungetc
+	IN->ungetc(ord($C)) if defined $C;
+        debug "MAC \\r detected";
+        $in_mac_p=1;
+      } elsif ($C eq "\n") { # Dat: \r\n, DOS CRLF
+        $in_mac_p=0; $S.="\r";
+      } else { $in_mac_p=0 }
+      $S.="\n";
+    } # $S.=readIN;
     if (substr($S,0,4)eq'%PDF') {
       # error "$InputFilename: won't read a PDF file";
       if ($FileFormat eq 'PDF') { # convert PDF to PDF
@@ -1147,21 +1247,34 @@ my $header;
         error "closing PIPE: $?" unless close PIPE;
         error "BoundingBox not found in pdftops output" if !@L;
         debug "Got PaperSize: @L";
-        $L[0]=ceil $L[0]; $L[1]=ceil $L[1]; # Dat: pdftops expects integer papersize :-( )
+
+	# vvv Dat: pdftops without -eps doesn't report HiResBoundingBox,
+	#     so we force it here
+	# at Wed Nov 15 17:19:23 CET 2006
+	$::opt_bboxfrom='adsc' if $::opt_bboxfrom eq 'guess';
+	$force_hiresbbox_value="0 0 @L";
+	
+        #die defined $L[1];
+        $L[0]=myceil $L[0]; $L[1]=myceil $L[1]; # Dat: pdftops expects integer papersize :-( )
 	if ($::opt_approx) {
-          do_exec 'pdftops', '-paperw', $L[0], '-paperh', $L[1], $InputFilename, $OutputFilename;
+	  # vvv Dat: even pdftops 3.01 accepts only integer for -paperw and paperh
+          do_exec 'pdftops', '-paperw', myfloor($L[0]+0.5), '-paperh', myfloor($L[1]+0.5), $InputFilename, $OutputFilename;
 	} else {
 	  my $tpfn=temp_prefix()."Pps";
 	  error "Cannot open temp pipe dest: $tpfn" unless open TP, "> $tpfn";
 	  $tmpfiles{$tpfn}=1;
 	  die unless close TP;
-          do_system 'pdftops', '-paperw', $L[0], '-paperh', $L[1], $InputFilename, $tpfn;
+          do_system 'pdftops', '-paperw', myfloor($L[0]+0.5), '-paperh', myfloor($L[1]+0.5), $InputFilename, $tpfn;
 	  error "Cannot open temp pipe src: $tpfn" unless open IN, "< $tpfn";
 	  $already_read=0; $bytes_left=-1;
 	  $InputFilename=$tpfn; # '-'
 	  goto SCAN_AGAIN
 	}
+      } elsif (is_ok_sam2p() or is_via_sam2p()) {
+        # Dat: PDF to GIF conversion
+        run_sam2p(1,$S);
       }
+
       error "cannot create from PDF: FileFormat $FileFormat";
      OK:
     }
@@ -1211,11 +1324,11 @@ sub CorrectBoundingBox($$$$$$$) {
     ($px,$py)=($1+0,$2+0) if $after_correct=~m@/PageSize\s*\[(\S+)\s+(\S+)+\]@;
     my @paper=Htex::papers::any("$px,$py");
     $paper[0]=defined $paper[0] ? "%%DocumentPaperSizes: $paper[0]\n" : "";
-    $bbx.="%%BoundingBox: ".floor($llx)." ".floor($lly)." ".
-                             ceil($urx)." ". ceil($ury)."\n";
+    $bbx.="%%BoundingBox: ".myfloor($llx)." ".myfloor($lly)." ".
+                             myceil($urx)." ". myceil($ury)."\n";
     $bbx.="%%HiResBoundingBox: $llx $lly $urx $ury\n".
-          "%%ExactBoundingBox: $llx $lly $urx $ury\n" if floor($llx)!=$llx
-      or floor($lly)!=$lly or ceil($urx)!=$urx or ceil($ury)!=$ury;
+          "%%ExactBoundingBox: $llx $lly $urx $ury\n" if myfloor($llx)!=$llx
+      or myfloor($lly)!=$lly or myceil($urx)!=$urx or myceil($ury)!=$ury;
     $bbx.="%%DocumentMedia: plain $px $py 0 () ()\n". # like pdftops(1)
           "$paper[0]";
     # ^^^ Imp: can DocumentMedia be non-integer? As of us, it can.
@@ -1250,10 +1363,10 @@ sub CorrectBoundingBox($$$$$$$) {
     }
     my $new_bbox="$llx $lly $urx $ury";
     if ($old_bbox eq $new_bbox) {
-      debug "Final BoundingBox: $new_bbox";
+      debug "Final (HiRes)BoundingBox: $new_bbox";
     } else {
-      debug "Old BoundingBox: $old_bbox";
-      debug "Final corrected BoundingBox: $new_bbox";
+      debug "Old (HiRes)BoundingBox: $old_bbox";
+      debug "Final corrected (HiRes)BoundingBox: $new_bbox";
     }
     $pagedev_mark="/pdfmark where{pop}{/pdfmark/cleartomark load def}ifelse\n$pagedev_mark"
       if length($pagedev_mark)!=0;
@@ -1263,27 +1376,42 @@ sub CorrectBoundingBox($$$$$$$) {
   #      recompress the images already compressed in the EPS file, but keep
   #      them in their original, compressed form. So we rather instruct GS to
   #      recompress
+  # !! Dat: /CompatibilityLevel 1.3 %PDF-1.2 -- Dat: 1.2 won't embed Courier
   my $markpagedevices="";
+  my $imagesopts=($::opt_lossy ? "
+/AutoFilterMonoImages true
+/AutoFilterGrayImages true
+/AutoFilterColorImages true
+/MonoImageFilter /CCITTFaxEncode
+/GrayImageFilter /DCTEncode
+/ColorImageFilter /DCTEncode
+" : "
+/AutoFilterMonoImages false
+/AutoFilterGrayImages false
+/AutoFilterColorImages false
+/MonoImageFilter /LZWEncode
+/GrayImageFilter /LZWEncode
+/ColorImageFilter /LZWEncode
+"); # Dat: assumes new, patent-free LZW
   if (is_pdfmark()) {
+    # Dat: CompatibilityLevel 1.3 is required for font embedding & all /FlateDecode
     $markpagedevices="
-/CompatibilityLevel 1.2 %PDF-1.2
+/CompatibilityLevel 1.3 %PDF-1.3
 /EmbedAllFonts true
 /Optimize true % ignored by gs-6.70
 /AutoRotatePages /None
 /UseFlateCompression ".($::opt_compression ne 'none'?"true":"false")."
 /AutoPositionEPSFiles false
-/AutoFilterGrayImages false
 /ConvertImagesToIndexed false
 /DownsampleMonoImages false
 /DownsampleGrayImages false
 /DownsampleColorImages false
-/AutoFilterColorImages false
 /EncodeMonoImages true
 /EncodeGrayImages true
 /EncodeColorImages true
 /AntiAliasMonoImages false
 /AntiAliasGrayImages false
-/AntiAliasColorImages false\n";
+/AntiAliasColorImages false\n$imagesopts";
     $markpagedevices=(length($markpagedevices)!=0 ? "<< $markpagedevices >> setpagedevice\n" : "");
     $markpagedevices.="1 dict dup /ImagingBBox null put setpagedevice\n";
     $markpagedevices.="1 dict dup /Policies 1 dict dup /PageSize 3 put put setpagedevice\n"; # ripped from pdftops(1)
@@ -1298,7 +1426,7 @@ sub CorrectBoundingBox($$$$$$$) {
     # Dat: true for FileFormat PGM
     # Dat: emit /PageSize even for PDF1
     # Dat: Ghostscript 6.70 rounds /PageSize down, but we need up when creating /MediaBox for PDF
-    $setpagesize="2 dict dup /PageSize [".ceil($urx)." ".ceil($ury)."] put setpagedevice\n";
+    $setpagesize="2 dict dup /PageSize [".myceil($urx)." ".myceil($ury)."] put setpagedevice\n";
     # ^^^ Dat: PLRM.pdf doesn't forbid a non-integer /PageSize
   }
   my $bsetup=is_page1_stop()?"":"%%BeginSetup\n%%EndSetup\n";
@@ -1310,7 +1438,20 @@ sub CorrectBoundingBox($$$$$$$) {
   #     %%BeginSetup..%%EndSetup pair just before our code doing
   #     `setpagedevice'.
   # !! ?? run pstops first, and then a2ping.pl
-  my $save=$is_restored?"save\n":"";
+  # !! why does a PDF -> PS conversion need $is_restored?
+  # vvv Dat: `mark' is necessary, because pstops 1.17 from xpdf(1) emits lines
+  #     lines leaving `false' on the stack:
+  #     %%BeginResource: font SKPOPP+LMRoman12-Regular
+  #     %!PS-AdobeFont-1.0: LMRoman12-Regular 0.86
+  #     %%CreationDate: 4th August (Monday) 2003
+  #     % Generated by MetaType1 (a MetaPost-based engine)
+  #     % CM sources: copyright (C) 1997 AMS, all rights reserved; METATYPE1/Type 1 ver
+  #     % ADL: 694 194 112
+  #     %%EndComments
+  #     FontDirectory/LMRoman12-Regular known{/LMRoman12-Regular findfont dup/UniqueID
+  #     /UniqueID get 0 eq exch/FontType get 1 eq and}{pop false}ifelse
+  #     {save true}{false}ifelse}{false}ifelse
+  my $save=$is_restored?"save mark\n":"";
   $bbx.$fontsdefs."%%EndComments\n".$bsetup.$setpagesize.$markpagedevices.$pagedev_mark.$after_correct.$save.$translate
 }
 
@@ -1534,7 +1675,7 @@ showpage quit
       ## print STDERR $res;
       error $?==11 ? "segmentation fault in $GS" : "not a GS output from $GS ($?)"
         if !defined $res # BUGFIX at Sun Mar  7 18:51:34 CET 2004
-        or $res!~s/\A\w+ Ghostscript \d.*\n// # AFPL Ghostscript 6.50 (2000-12-02)
+        or $res!~s/\A(?:\w+ Ghostscript \d|Copyright .* artofcode ).*\n// # AFPL Ghostscript 6.50 (2000-12-02)
         or $res!~s/.*?^bbox-begin\n//m;
       if ($res!~s/\nbbox-success\n\Z(?!\n)/\n/) {
         warning # not `error', mpost(1) `prologues:=0; ... btex fonts' output won't compile
@@ -1587,6 +1728,7 @@ showpage quit
         elsif ($line=~/^sides-dumplex==false$/) { $duplexi=2 }
         elsif ($line=~/^sides-tumble==true$/) { $tumblei=1 }
         elsif ($line=~/^sides-tumble==false$/) { $tumblei=2 }
+        elsif ($line=~/^add-showpage==\d+$/) { } # !!
         elsif (length($line)==0 or $line=~/^(?:Copyright |This software )/) {}
         elsif ($line=~/^Loading (\S+) font from.*[.][.][.]/) { debug "GS builtin font used: $1" }
         else { debug "unknown line ($line)" }
@@ -1619,7 +1761,7 @@ showpage quit
         die if is_page1_stop();
         # vvv ($llx,$lly,$urx,$ury)=(0,0,$papersize_x,$papersize_y);
         # $do_bb_line->("set 0 0 $papersize_x $papersize_y"," from /PageSize");
-        $after_correct.="1 dict dup /PageSize [".ceil($papersize_x)." ".ceil($papersize_y)."] put setpagedevice\n";
+        $after_correct.="1 dict dup /PageSize [".myceil($papersize_x)." ".myceil($papersize_y)."] put setpagedevice\n";
         # ^^^ Dat: both PS and markedPS would benefit from /PaperSize
         # ^^^ Dat: will be put after CorrectBoundingBox
         # Dat: unneeded: $allow_adsc_bb=0 if $FileFormat eq 'PDF'; # force this into /CropBox (otherwise only /MediaBox)
@@ -1655,8 +1797,11 @@ showpage quit
         }
       }
       # vvv Dat: save...restore is _always_ necessary to undo the changes made
-      #     in the file itself
-      $is_restored=1; # $after_comments.="save\n";
+      #     by the file itself (??)
+      # vvv BUGFIX (only EPS) at Tue Feb  8 21:40:11 CET 2005
+      # vvv Dat: now with PS output it is possible that garbage is left on
+      #     the stack (see the `LMRoman' example above)
+      $is_restored=1 if $FileFormat eq'EPS' or $FileFormat eq'markedEPS';
       $after_comments.=$undefs; # after our precious setpagedevice calls
       # debug "pop_count=$pop_count;";
       # debug "end_count=$end_count;";
@@ -1696,7 +1841,7 @@ showpage quit
   my %fontsnames;
   my @creator;
   read_again: while (length($_=readIN)) {
-    ##print STDERR "(($_))\n";
+    #print STDERR "(($_))\n";
     ### end of header
     next unless /\S/;
     y@\r@@d; chomp;
@@ -1715,8 +1860,9 @@ showpage quit
         $creator_adobeps_p=1;
       } elsif (/^%%Creator:\s*MetaPost\b/i) {
         $creator_metapost_p=1;
-      } elsif ((substr($_,0,2)ne'%%' and substr($_,0,7)ne'%*Font:')
-       and substr($_,0,5)ne'%EPS ' # epsincl.mp
+      } elsif ((substr($_,0,2)ne'%%' and substr($_,0,7)ne'%*Font:' and
+       substr($_,0,5)ne'%ADO_' and !/^%AI\d_/ # Dat: %ADO_DSC_..., %AI7_Thumbnail
+       and substr($_,0,5)ne'%EPS ') # epsincl.mp
        or !$creator_metapost_p and substr($_,0,5)eq'%%End'
        or /^%%Begin(?:Prolog|Setup)\b/i
          ) { $after_comments.="$_\n"; last }
@@ -1741,7 +1887,12 @@ showpage quit
     } elsif (/^$BBregex$BBValues/oi) { ### BoundingBox with values
       s@($BBregex)\s*1\s+1\s+@$1 0 0 @ if $creator_adobeps_p;
       # vvv $bbtype may be possibly already set by compute-gs
-      $do_bb_line->($_," from ADSC") if $allow_adsc_bb;
+      if ($allow_adsc_bb) {
+        $do_bb_line->($_," from ADSC");
+	if ($force_hiresbbox_value) {
+	  $do_bb_line->("%%HiResBoundingBox: $force_hiresbbox_value"," from ADSC");
+	}
+      }
     } elsif (/^$BBregex\s*\(atend\)/oi) {
       ### BoundingBox with (atend)
       debug "At end $1BoundingBox";
@@ -1750,6 +1901,8 @@ showpage quit
       $do_atend=1
     } elsif (/^%%Page:/i and !$creator_metapost_p) { # at Thu Sep 25 15:59:52 CEST 2003
       $after_comments.="$_\n"; last
+    } elsif (/^%(?:ADO_DSC_|AI\d_)/) { # Dat: example: %ADO_DSC_Encoding: MacOS Roman
+      $to_OUT.="%$_\n";
     } elsif (/^%\*Font:\s+(\S+)\s+/) { # mpost(1) output
       ## debug $_;
       $fontsdefs.="$_\n"; # put in front (before `gsave ... translate')
@@ -1884,7 +2037,7 @@ error "closing IN: $?" unless close IN;
 # vvv Dat: $after_code is pop+end
 print OUT "\n$extra_trailer$after_code",
   ("grestore\n"x$need_grestore),
-  ("restore\n"x$is_restored),
+  ("cleartomark restore\n"x$is_restored),
   "%%EOF\n";
 error "closing gs filter: $? $!" unless close OUT;
 
@@ -1939,6 +2092,7 @@ if (!$ll_zero and ($FileFormat eq 'PDF' or $FileFormat eq 'PDF1')) { # correct /
   my $tfn=temp_prefix()."p.tgs";
   error "temp open $tfn: $!" unless open F, "> $tfn";
   $tmpfiles{$tfn}=1;
+  # vvv Dat: doesn't work with gs 8.53: Error: /undefined in readxrefentry
   die unless print F "% this is temporary gs command file created by $program".'
   GS_PDF_ProcSet begin
   pdfdict begin
@@ -1949,7 +2103,10 @@ if (!$ll_zero and ($FileFormat eq 'PDF' or $FileFormat eq 'PDF1')) { # correct /
   % vvv Dat: modifies Objects[0]
   1 pdffindpageref 0 get
   Objects 0 OFT put
-  readxrefentry ===
+  %===
+  %print_xref
+  { readxrefentry } stopped { Objects exch lget } if
+  ===
   currentdict pdfclose end end end
   ';
   die unless close F;
@@ -1957,6 +2114,7 @@ if (!$ll_zero and ($FileFormat eq 'PDF' or $FileFormat eq 'PDF1')) { # correct /
   my $gs2="$GS -dNODISPLAY -dBATCH -sFN=".fnq(fix_pipe_out(undef))." -q ".fnq($tfn);
   debug "Ghostscript dup pipe: $gs2";
   my $offset=`$gs2`;
+  #die $offset;
   chomp $offset;
   temp_unlink $tfn;
   if ($offset=~/\A\d+\Z(?!\n)/) {
@@ -1966,14 +2124,26 @@ if (!$ll_zero and ($FileFormat eq 'PDF' or $FileFormat eq 'PDF1')) { # correct /
     die unless seek F, $offset+=0, 0;
     my $pageobj;
     die unless 32<read F, $pageobj, 4096;
-    if ($pageobj=~m@\A(.*?/Type\s*/Page\b.*?)(/MediaBox\s*\[0 0 [^\]]*\]).*?/MediaBox\b@s) {
-      substr($pageobj, length($1), length($2))=" "x length($2);
-      # ^^^ overwrite first buggy /MediaBox definition with spaces
-      die unless seek F, $offset, 0;
-      die unless print F $pageobj;
-      debug "old /MediaBox destroyed.";
+    if ($::opt_keepoldmediabox) {
+      if ($pageobj=~m@\A(.*?/Type\s*/Page\b.*?/MediaBox\s*\[0 0 [^\]]*\].*?)((?:/CropBox\s*\[[^\]]+\]\s*)?/MediaBox\s*\[[^\]]+\])@s) {
+	substr($pageobj, length($1), length($2))=" "x length($2);
+	# ^^^ overwrite first buggy /MediaBox definition with spaces
+	die unless seek F, $offset, 0;
+	die unless print F $pageobj;
+	debug "new /MediaBox destroyed.";
+      } else {
+	debug "warning: double /MediaBox not found at $offset";
+      }
     } else {
-      debug "warning: double /MediaBox not found at $offset";
+      if ($pageobj=~m@\A(.*?/Type\s*/Page\b.*?)(/MediaBox\s*\[0 0 [^\]]*\]).*?/MediaBox\b@s) {
+	substr($pageobj, length($1), length($2))=" "x length($2);
+	# ^^^ overwrite first buggy /MediaBox definition with spaces
+	die unless seek F, $offset, 0;
+	die unless print F $pageobj;
+	debug "old /MediaBox destroyed.";
+      } else {
+	debug "warning: double /MediaBox not found at $offset";
+      }
     }
     die unless close F;
   } else {
@@ -2091,8 +2261,9 @@ if ($do_scale3_pnm) {
 if (@pnm2sampled_cmd) { # $scale3_pnm_fn -> $OutputFilename
   do_system @pnm2sampled_cmd; # Dat: uses @extra -- really share that?
   temp_unlink $scale3_pnm_fn;
+} else { # BUGFIX for `a2ping.pl -v --antialias=no negyzet.eps negyzet.png' at Wed Jul 20 21:34:29 CEST 2005
+  fix_close_out();
 }
-fix_close_out();
 undef $unlink_OutputFilename;
 if ($OutputFilename eq '-') {
   debug "Done OK, stdout is $FileFormat"
