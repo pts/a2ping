@@ -350,7 +350,7 @@ use just +1; # a JustLib application
 use strict;
 use integer;
 use Htex::papers;
-BEGIN { $Htex::a2ping::VERSION="2.81p" }
+BEGIN { $Htex::a2ping::VERSION="2.82p" }
 
 # Imp: option to ignore `%%Orientation: Portrait', which gs respects and rotates by 90 degrees if necessary
 # Imp: gs(704?!) sometimes finds too small bbox, see Univers.eps
@@ -399,7 +399,7 @@ BEGIN { $Htex::a2ping::VERSION="2.81p" }
 
 ### program identification
 my $program = "a2ping.pl";
-my $filedate="2006-11-15";  # See also $Htex::a2ping::VERSION.
+my $filedate="2007-03-07";  # See also $Htex::a2ping::VERSION.
 my $copyright = "Written by <pts\@fazekas.hu> from April 2003.
 This is free software, GNU GPL >=2.0. There is NO WARRANTY.
 (epstopdf 2.7 Copyright 1998-2001 by Sebastian Rahtz et al.)\n";
@@ -2358,14 +2358,97 @@ write extra output formats, B<sam2p> and GS are used.
 PNM output formats are PGM, PGM and PPM. To write PNM output formats, GS
 is used.
 
+=head1 OPTIONS
+
+=head2 General Options
+
+=over 2
+
+=item B<-h>, B<--help>
+
+Show a summary of the usage
+
+=item B<--doc>
+
+Show the man page
+
+=item B<-v>, B<--(no)verbose>
+
+Show progress and debug messages (default: no)
+
+=head2 Options for the Bounding box
+
+=item B<--(no)hires>
+
+Use HiResBoundingBox in the input file, if present (default: yes)
+
+=item B<--(no)exact>
+
+Use ExactBoundingBox in the input file, if present (default: no)
+
+=item B<--(no)keepoldmediabox>
+
+keep only old, [0 0]-based MediaBox in PDF (default: no)
+
+=item B<--bboxfrom=>I<adsc|compute-gs|guess|pagesize>
+
+Method for determining the BoundingBox  (default: guess)
+
+=item B<--(no)below>
+
+Allow page content below and left of the origin (default: no)
+
+
+=head2 Options for graphics and fonts
+
+=item B<--(no)compress>
+
+use compression                   (default: best)
+
+=item B<--(no)antialias>
+
+render shades at outlines.  Possible values: (=I<scale3yes> =I<no> =I<yes>)  (default: scale3no)
+
+=item B<--(no)lossy>
+
+allow lossy image filters (EPS->PDF) (default: yes)
+
+=item B<--papersize=>I<unchanged|force-unknown|600bpx5cm>
+
+(default: default) (bp)
+
+=item B<--threshold=>
+
+min color for 1 in 8->1 bit conv  (default: 128)
+
+
+=head2 Options for debugging and changing internals
+
+=item B<--(no)tmpunlink>
+
+Unlink temporary files (default: yes).  Use B<--notmpunklink> if you
+want to inspect intermediate files.
+
+=item B<--gs-cmd=>I<path>
+
+path to Ghostscript program (default: gs or gswin32c)
+
+=item B<--gs-ccmd=>I<path>
+
+path to Ghostscript for BoundingBox calculation (default: gs or gswin32c)
+
+=item B<--gsextra=>I<GS_ARGS>
+
+Pass extra arguments to gs
+
+=item B<--extra=>
+
+Pass extra arguments to external program (i.e pdftops)
+
 
 =head1 TIPS AND TRICKS
 
 =over 2
-
-=item *
-
-Call with the B<-v> option to see progress and debug messages.
 
 =item *
 
@@ -2431,6 +2514,11 @@ B<--Resolution>. The default is B<--Resolution=72>. If your sampled output file
 is going to be really big, you should specify B<--AntiAlias=yes> instead of
 the default B<--AntiAlias=scale3no> to speed up conversion.
 
+=item *
+
+To make sure fonts are included in a PDF file generated from eps, use
+B<--gsextra='-dEmbedAllFonts=true -dPDFSETTINGS=/printer'>.
+
 =back
 
 
@@ -2468,7 +2556,7 @@ Conversion from PS to EPS: keeps 1st page only, removes setpagedevice etc.
 
 =head1 AUTHORS
 
-The author of B<a2ping> is PÃ©ter SzabÃ³ <F<pts@fazekas.hu>>.
+The author of B<a2ping> is Péter Szabó <F<pts@fazekas.hu>>.
 
 B<a2ping> is inspired by and historically based on the B<epstopdf> Perl
 script modified by Thomas Esser, Sept. 1998, but his modifications have
@@ -2476,8 +2564,6 @@ been removed from B<a2ping>, and also B<a2ping> and B<epstopdf> do not
 share common code anymore.  B<epstopdf> is written by Sebastian Rahtz,
 for Elsevier Science. B<epstopdf> contained extra tricks from Hans Hagen's
 texutil.
-
-=head1 HISTORY
 
 B<a2ping> contains contributions from several people, see the file
 F<HISTORY.txt> for details. Thank you all for contributing!
