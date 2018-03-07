@@ -1,0 +1,142 @@
+
+=head1 HISTORY
+
+=head2 1999-05-06 v2.5 (Heiko Oberdiek)
+
+ * New options: --hires, --exact, --filter, --help.
+ * Many cosmetics: title, usage, ...
+ * New code for debug, warning, error
+ * Detecting of cygwin perl
+ * Scanning for %%{Hires,Exact,}BoundingBox.
+ * Scanning only the header in order not to get a wrong
+   BoundingBox of an included file.
+ * (atend) supported.
+ * uses strict; (earlier error detecting).
+ * changed first comment from '%!PS' to '%!';
+ * corrected (atend) pattern: '\s*\(atend\)'
+ * using of $bbxpat in all BoundingBox cases,
+   correct the first white space to '...Box:\s*$bb...'
+ * corrected first line (one line instead of two before 'if 0;';
+
+=head2 2000-11-05 v2.6 (Heiko Oberdiek)
+
+ * %%HiresBoundingBox corrected to %%HiResBoundingBox
+
+=head2 2001-03-05 v2.7 (Heiko Oberdiek)
+
+ * Newline before grestore for the case that there is no
+   whitespace at the end of the eps file.
+
+=head2 2003-02-02 v2.70p (Péter Szabó)
+
+ * option --below
+ * removes DOS EPSF binary junk correctly
+ * adds all 3 BoundingBox DSC comments
+ * reads all 3 BoundingBox DSC comments, and picks the best
+ * forces BoundingBox to be an integer
+ * adds %%EndComments and proper %!PS-Adobe-?-? EPSF-?.? header
+ * adds %%Pages:
+ * adds invocation syntax: a2ping <infile.eps> <outfile.eps|pdf>
+ * can convert PDF to EPS (by calling pdftops(1)) and PDF to PDF
+ * emulates work for PDF input
+
+=head2 2003-04-16 (Péter Szabó)
+
+ * added PS and sam2p support, renamed to a2ping
+ * sam2p and pdftops if $InputFilename eq '-';
+ * remove PJL UEL header from the beginning
+ * works for PS non-EPS files for input
+ * input support for PNG JPEG TIFF PNM BMP GIF LBM XPM PCX TGA via sam2p
+ * removes ^L (form feed) from end of EPS file
+ * -x=-c:rle to add sam2p options
+
+=head2 2003-04-26 (Péter Szabó)
+
+ * omit the unnecessary setpagedevice calls when creating normal eps
+ * --noverbose --nocompress supported differently
+ * no more option defaults :-(
+ * justlib2
+ * multi-page output with PS:, PDF:, PCL5:
+ * after `a2ping -pa4', file out.pcl says: `HP PCL printer data - A4 page
+   size', instead of `US letter'
+ * justlib2-ified doesn't depend on Getopt::Long anymore
+ * fully supports filtering (stdin and/or stdout), PDF and PCL5 output to
+   pipe (!$$ll_zero)
+ * adds DSC ``%%DocumentMedia: plain 612 792 0 () ()''
+ * BoundingBox precedence for EPS input: --PageSize, %%*BoundingBox,
+   setpagedevice. Precedence for other inputs: --PageSize, setpagedevice,
+   %%*BoundingBox
+
+=head2 2003-09-25 (Péter Szabó)
+
+ * --bboxfrom=adsc: %%BoundingBox overrides -sDEVICE=bbox
+ * improved bbox discovery
+ * many bugfixes
+ * MetaPost EPS input fixes for prologues:=0;
+ * a2ping.pl -v --papersize=50,60 --bboxfrom=compute-gs t.ps t2.ps
+ * consistent bbox, --PageSize, /PageSize handling
+ * consistent --Resolution and --Duplex handling
+
+=head2 2003-12-02 (Péter Szabó)
+
+ * --bboxfrom=compute-gs option to fix PS -> EPS bbox (gs -sDEVICE=bbox), tuzv.eps
+
+=head2 2004-02-10 v2.76p (Péter Szabó)
+
+ * This is the first version to be (retroactively) added to the Git repo.
+ * the compute-pipe routine is now run unless --bboxfrom=guess with EPS
+ * added --gsextra=
+ * added --antialias=
+ * added FileFormat PBM, PGM, PPM
+ * separated FileFormat features to FL_* constants
+ * added --doc
+ * there is no default FileFormat (PDF) anymore
+
+=head2 200?-??-?? v2.77p (Péter Szabó)
+
+ * Almost identical to v2.81p.
+ * Almost identical to the /usr/bin/a2ping in TeX Live 2013, Ubuntu package
+   https://packages.ubuntu.com/trusty/texlive-extra-utils
+   2013.20140215-2 . /usr/bin/a2ping has the version number 2.77 in it.
+
+=head2 200?-??-?? v2.78p (Péter Szabó)
+
+ * Almost identical to v2.82p.
+ * Has been available in http://www.inf.bme.hu/~pts/a2ping-latest.zip and
+   then in http://pts.50.hu/~pts/a2ping-latest.zip between 2007-03-07 and
+   2018-03-06.
+ * Has been published to http://freshmeat.sourceforge.net/projects/a2ping .
+
+=head2 2004-04-28 v2.80p (Péter Szabó)
+
+ * Added reporting of the license (GPL).
+ * Some more improvements, no history text.
+
+=head2 2006-11-15 v2.81p (Péter Szabó)
+
+ * Added keepoldmediabox.
+ * Lots of improvements, no history text.
+ * Almost identical to v2.78p.
+ * Almost identical to the /usr/bin/a2ping in TeX Live 2013, Ubuntu package
+   https://packages.ubuntu.com/trusty/texlive-extra-utils
+   2013.20140215-2 . /usr/bin/a2ping has the version number 2.77 in it.
+
+=head2 2007-03-07 v2.82p (Péter Szabó and Frank Küster)
+
+ * Almost identical to v2.78p.
+ * Improvements for tetex2 and tetex3 compatibility.
+ * Some more improvements, no history text.
+ * POD documentation enhancements (font embedding tricks) by Frank Küster
+ * Has been available in http://www.inf.bme.hu/~pts/a2ping-latest.zip and
+   then in http://pts.50.hu/~pts/a2ping-latest.zip between 2007-03-07 and
+   2018-03-06, with the version number 2.78p in the a2ping.pl file.
+ * Has been published to http://freshmeat.sourceforge.net/projects/a2ping
+   with version number 2.78p.
+
+=head2 2018-03-07 v2.83p (Péter Szabó)
+
+  * .callbeginpage and .setglobal fix for Ghostscript 9.22
+    (https://bugs.ghostscript.com/show_bug.cgi?id=699063).
+    Problem reported by Akira Yokosawa.
+
+__END__
