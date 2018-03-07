@@ -350,7 +350,7 @@ use just +1; # a JustLib application
 use strict;
 use integer;
 use Htex::papers;
-BEGIN { $Htex::a2ping::VERSION="2.82p" }
+BEGIN { $Htex::a2ping::VERSION="2.83p" }
 
 # Imp: option to ignore `%%Orientation: Portrait', which gs respects and rotates by 90 degrees if necessary
 # Imp: gs(704?!) sometimes finds too small bbox, see Univers.eps
@@ -399,7 +399,7 @@ BEGIN { $Htex::a2ping::VERSION="2.82p" }
 
 ### program identification
 my $program = "a2ping.pl";
-my $filedate="2007-03-07";  # See also $Htex::a2ping::VERSION.
+my $filedate="2018-03-07";  # See also $Htex::a2ping::VERSION.
 my $copyright = "Written by <pts\@fazekas.hu> from April 2003.
 This is free software, GNU GPL >=2.0. There is NO WARRANTY.
 (epstopdf 2.7 Copyright 1998-2001 by Sebastian Rahtz et al.)\n";
@@ -1541,12 +1541,13 @@ count /OPCOUNT exch def
       (bbox-success\n) ..print
       quit
     } if
-    .callbeginpage
   }
+  % Run the previous contents of /BeginPage: {--.callbeginpage--}
+  [exch aload pop currentpagedevice /BeginPage get aload pop] cvx
 >> setpagedevice
 
 % vvv do these after our call to /setpagedevice
-.currentglobal true .setglobal
+currentglobal true setglobal
 systemdict begin
 /..paper.redef<< >>def
 /..print/print load def
@@ -1655,7 +1656,7 @@ dup/= exch def /print exch def
   pop
 }forall} forall
 end % systemdict
-.setglobal
+setglobal
 systemdict readonly pop
 
 (bbox-begin\n) ..print
