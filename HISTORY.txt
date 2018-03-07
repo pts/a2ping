@@ -103,7 +103,7 @@
 
  * Almost identical to v2.82p.
  * Has been available in http://www.inf.bme.hu/~pts/a2ping-latest.zip and
-   then in http://pts.50.hu/~pts/a2ping-latest.zip between 2007-03-07 and
+   then in http://pts.50.hu/a2ping-latest.zip between 2007-03-07 and
    2018-03-06.
  * Has been published to http://freshmeat.sourceforge.net/projects/a2ping .
 
