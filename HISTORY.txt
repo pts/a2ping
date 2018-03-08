@@ -114,9 +114,9 @@
 
 =head2 2006-11-15 v2.81p (Péter Szabó)
 
+ * Almost identical to v2.77p.
  * Added keepoldmediabox.
  * Lots of improvements, no history text.
- * Almost identical to v2.78p.
  * Almost identical to the /usr/bin/a2ping in TeX Live 2013, Ubuntu package
    https://packages.ubuntu.com/trusty/texlive-extra-utils
    2013.20140215-2 . /usr/bin/a2ping has the version number 2.77 in it.
