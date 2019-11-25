@@ -139,4 +139,8 @@
     (https://bugs.ghostscript.com/show_bug.cgi?id=699063).
     Problem reported by Akira Yokosawa.
 
+=head2 2019-11-17 v2.84p (Péter Szabó and Akira Yokosawa)
+
+  * -dNOSAFER fix for Ghostscript 9.50 by Akira Yokosawa.
+
 __END__
